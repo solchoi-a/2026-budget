@@ -124,6 +124,25 @@ label.chk input{accent-color:var(--act)}
 .cat .rail .pace{position:absolute;top:0;bottom:0;width:2px;background:var(--ink)}
 .cat.empty{opacity:.42}
 
+/* ---------- item progress ---------- */
+.itembox{padding:6px 16px 14px;max-height:460px;overflow-y:auto}
+.itemgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:2px 26px}
+.it{padding:9px 0;border-bottom:1px solid var(--grid)}
+.it .ih{display:flex;align-items:baseline;gap:8px}
+.it .nm{font-size:12px;font-weight:600;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.it .gp{font-size:12px;font-weight:800;letter-spacing:-.02em;flex:none}
+.it .gp.up{color:var(--over)} .it .gp.dn{color:var(--act)} .it .gp.eq{color:var(--muted)}
+.it .rail{position:relative;height:8px;background:var(--plan-soft);border-radius:2px;overflow:hidden;margin:5px 0 4px}
+.it .rail .f{position:absolute;left:0;top:0;bottom:0;background:var(--act)}
+.it .rail .f.over{background:var(--over)}
+.it .rail .pace{position:absolute;top:-2px;bottom:-2px;width:2px;background:var(--ink)}
+.it .sb{font-size:10.5px;color:var(--muted)}
+.it.zero{opacity:.4}
+.sortseg{display:inline-flex;gap:2px}
+.sortseg button{appearance:none;border:0;background:transparent;font:inherit;font-size:11.5px;font-weight:600;
+  color:var(--muted);cursor:pointer;padding:3px 7px;border-radius:3px}
+.sortseg button[aria-pressed="true"]{background:var(--ink);color:#fff}
+
 /* ---------- monthly chart ---------- */
 .chartbox{padding:10px 12px 14px}
 svg.chart{width:100%;height:auto;display:block;overflow:visible}
@@ -280,6 +299,23 @@ footer .credit b{color:var(--ink2);font-weight:700}
   </section>
 </div>
 
+<!-- ITEM PROGRESS -->
+<section class="panel" style="margin-bottom:14px">
+  <div class="panel-h">
+    <h2>항목별 진척률</h2>
+    <span class="hint" id="itemHint"></span>
+  </div>
+  <div class="panel-h" style="padding:6px 16px 0">
+    <span class="sortseg" role="group" aria-label="정렬">
+      <button data-sort="gap" aria-pressed="true">격차순</button>
+      <button data-sort="diff" aria-pressed="false">금액차이순</button>
+      <button data-sort="amt" aria-pressed="false">예산순</button>
+      <button data-sort="name" aria-pressed="false">이름순</button>
+    </span>
+  </div>
+  <div class="itembox"><div class="itemgrid" id="itemgrid"></div></div>
+</section>
+
 <!-- TABLE -->
 <section class="panel">
   <div class="panel-h"><h2>상세 내역</h2><span class="hint">재무구분 행을 클릭하면 세부 항목이 열립니다 · 단위: 백만원</span></div>
@@ -375,7 +411,7 @@ const S = {
   actualMonths: 7,
   srcName: "FCST07-2026-07 (기본 탑재)",
   accts: new Set(), keys: new Set(),
-  pg:"ALL", incExtra:false, open:new Set()
+  pg:"ALL", incExtra:false, open:new Set(), itemSort:"gap"
 };
 
 /* ---------- helpers ---------- */
@@ -469,6 +505,7 @@ function render(){
 
   renderChips(all);
   renderCats(rows,A);
+  renderItems(rows);
   renderMonthly(A);
   renderCum(A);
   renderTable(rows);
@@ -521,6 +558,36 @@ function renderCats(rows,A){
   }).join("");
 }
 
+/* item progress list */
+function renderItems(rows){
+  const N=S.actualMonths;
+  const list=rows.map(r=>{
+    let b=0,by=0,a=0;
+    for(let i=0;i<12;i++){ b+=r.bm[i]; if(i<N){by+=r.bm[i]; a+=r.am[i];} }
+    return {n:r.n,key:r.key,b,by,a, prog:b?a/b:0, targ:b?by/b:0, gap:b?(a-by)/b:0, dAmt:a-by};
+  }).filter(x=>x.b>0||x.a>0);
+  const S2=S.itemSort;
+  list.sort((x,y)=> S2==="amt"  ? y.b-x.b
+                  : S2==="diff" ? y.dAmt-x.dAmt
+                  : S2==="name" ? x.n.localeCompare(y.n,"ko")
+                  : y.gap-x.gap);
+  document.getElementById("itemHint").textContent =
+    `${N}월 시점 · 진척률 = 누적실적 ÷ 연간예산, 목표 = 누적계획 ÷ 연간예산 · ${list.length}개 항목`;
+  document.getElementById("itemgrid").innerHTML = list.map(x=>{
+    const gp=x.gap*100, cls=Math.abs(gp)<0.05?"eq":(gp>0?"up":"dn");
+    const sign=Math.abs(gp)<0.05?"":(gp>0?"+":"−");
+    return `<div class="it${x.b?"":" zero"}">
+      <div class="ih"><span class="nm" title="${x.n} · ${x.key}">${x.n}</span>
+        <span class="gp ${cls}">${sign}${Math.abs(gp).toFixed(1)}%p</span></div>
+      <div class="rail">
+        <div class="f${x.prog>x.targ?" over":""}" style="width:${Math.max(0,Math.min(100,x.prog*100))}%"></div>
+        <div class="pace" style="left:${Math.max(0,Math.min(100,x.targ*100))}%"></div>
+      </div>
+      <div class="sb num">진척 ${x.b?(x.prog*100).toFixed(1)+"%":"–"} · 목표 ${x.b?(x.targ*100).toFixed(1)+"%":"–"} · 실적 ${fmt(x.a)} / 예산 ${fmt(x.b)} · 계획대비 <b style="color:${x.dAmt>0?"var(--over)":"var(--act)"}">${x.dAmt>=0?"+":"−"}${fmt(Math.abs(x.dAmt))}</b></div>
+    </div>`;
+  }).join("") || `<div class="it zero"><div class="sb">표시할 항목이 없습니다. 필터를 조정해 보세요.</div></div>`;
+}
+
 /* monthly bar chart */
 function renderMonthly(A){
   const N=S.actualMonths, W=620,H=300, L=52,R=8,T=14,B=26;
@@ -571,7 +638,7 @@ function renderCum(A){
 function renderTable(rows){
   const N=S.actualMonths;
   const ks=KEYS.concat(S.incExtra?[EXTRA_KEY]:[]);
-  const th=`<tr><th class="l">구분</th><th>연간예산</th><th>${N}월 계획</th><th>${N}월 실적</th><th>차이</th><th>집행률</th>`+
+  const th=`<tr><th class="l">구분</th><th>연간예산</th><th>${N}월 계획</th><th>${N}월 실적</th><th>차이</th><th>목표진척</th><th>진척률</th><th>격차</th>`+
     Array.from({length:12},(_,i)=>`<th>${i+1}월</th>`).join("")+`</tr>`;
   document.querySelector("#tbl thead").innerHTML=th;
   let html="", T={b:0,by:0,a:0,m:new Array(12).fill(0)};
@@ -585,7 +652,9 @@ function renderTable(rows){
     html+=`<tr class="grp${op?" open":""}" data-k="${k}"><td class="l">${k}</td>
       <td class="num">${fmtM(b)}</td><td class="num">${fmtM(by)}</td><td class="num">${fmtM(a)}</td>
       <td class="num ${d>0?"neg":"pos"}">${d>0?"+":""}${fmtM(d)}</td>
-      <td class="num">${b?(a/b*100).toFixed(1)+"%":"–"}</td>`+
+      <td class="num" style="color:var(--muted)">${b?(by/b*100).toFixed(1)+"%":"–"}</td>
+      <td class="num">${b?(a/b*100).toFixed(1)+"%":"–"}</td>
+      <td class="num ${d>0?"neg":"pos"}">${b?(d>0?"+":"−")+Math.abs((a-by)/b*100).toFixed(1)+"%p":"–"}</td>`+
       am.map((v,i)=>`<td class="num" style="color:${i<N?"var(--ink)":"var(--muted)"}">${v?fmtM(v):"–"}</td>`).join("")+`</tr>`;
     rs.sort((x,y)=>y.bm.reduce((p,c)=>p+c,0)-x.bm.reduce((p,c)=>p+c,0)).forEach(r=>{
       let rb=0,rby=0,ra=0; for(let i=0;i<12;i++){rb+=r.bm[i]; if(i<N){rby+=r.bm[i];ra+=r.am[i];}}
@@ -593,14 +662,18 @@ function renderTable(rows){
       html+=`<tr class="itm${op?" show":""}" data-p="${k}"><td class="l" title="${r.n} · ${r.acct}">${r.n}</td>
         <td class="num">${fmtM(rb)}</td><td class="num">${fmtM(rby)}</td><td class="num">${fmtM(ra)}</td>
         <td class="num ${rd>0?"neg":"pos"}">${rd>0?"+":""}${fmtM(rd)}</td>
-        <td class="num">${rb?(ra/rb*100).toFixed(1)+"%":"–"}</td>`+
+        <td class="num" style="color:var(--muted)">${rb?(rby/rb*100).toFixed(1)+"%":"–"}</td>
+        <td class="num">${rb?(ra/rb*100).toFixed(1)+"%":"–"}</td>
+        <td class="num ${rd>0?"neg":"pos"}">${rb?(rd>0?"+":"−")+Math.abs(rd/rb*100).toFixed(1)+"%p":"–"}</td>`+
         r.am.map((v,i)=>`<td class="num" style="color:${i<N?"var(--ink2)":"var(--muted)"}">${v?fmtM(v):"–"}</td>`).join("")+`</tr>`;
     });
   });
   const td=T.a-T.by;
   html+=`<tr class="tot"><td class="l">합계</td><td class="num">${fmtM(T.b)}</td><td class="num">${fmtM(T.by)}</td>
     <td class="num">${fmtM(T.a)}</td><td class="num ${td>0?"neg":"pos"}">${td>0?"+":""}${fmtM(td)}</td>
-    <td class="num">${T.b?(T.a/T.b*100).toFixed(1)+"%":"–"}</td>`+
+    <td class="num" style="color:var(--muted)">${T.b?(T.by/T.b*100).toFixed(1)+"%":"–"}</td>
+    <td class="num">${T.b?(T.a/T.b*100).toFixed(1)+"%":"–"}</td>
+    <td class="num ${td>0?"neg":"pos"}">${T.b?(td>0?"+":"−")+Math.abs(td/T.b*100).toFixed(1)+"%p":"–"}</td>`+
     T.m.map(v=>`<td class="num">${v?fmtM(v):"–"}</td>`).join("")+`</tr>`;
   const tb=document.querySelector("#tbl tbody"); tb.innerHTML=html;
   tb.querySelectorAll("tr.grp").forEach(tr=>tr.onclick=()=>{
@@ -674,6 +747,11 @@ document.querySelectorAll('.seg [data-ver]').forEach(b=>b.onclick=()=>{
 document.querySelectorAll('.seg [data-pg]').forEach(b=>b.onclick=()=>{
   S.pg=b.dataset.pg;
   document.querySelectorAll('.seg [data-pg]').forEach(x=>x.setAttribute("aria-pressed",x===b));
+  render();
+});
+document.querySelectorAll('.sortseg [data-sort]').forEach(b=>b.onclick=()=>{
+  S.itemSort=b.dataset.sort;
+  document.querySelectorAll('.sortseg [data-sort]').forEach(x=>x.setAttribute("aria-pressed",x===b));
   render();
 });
 document.getElementById("acctAll").onclick=()=>{S.accts.clear();render()};
