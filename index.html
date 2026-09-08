@@ -167,7 +167,8 @@ label.chk input{accent-color:var(--act)}
 .it .sb{font-size:10.5px;color:var(--muted)}
 .it.zero{opacity:.4}
 .tb{display:inline-block;font-size:9.5px;font-weight:700;padding:1px 5px;border-radius:2px;
-  background:var(--plan-soft);color:var(--ink2);margin-right:5px;vertical-align:1px;letter-spacing:.01em}
+  background:var(--plan-soft);color:var(--ink2);margin-right:5px;vertical-align:1px;letter-spacing:.01em;
+  white-space:nowrap}
 .tb.warn{background:var(--warn-soft);color:#6B5310}
 .sortseg{display:inline-flex;gap:2px}
 .sortseg button{appearance:none;border:0;background:transparent;font:inherit;font-size:11.5px;font-weight:600;
@@ -386,7 +387,7 @@ const ACT = {"HRBP":[{"n":"고정급-임원_제조","a":"급여","l":"급여","m
 
 /* ---------- 팀 ---------- */
 const TEAM = {
-  HRBP:    {label:"인사기획·운영·HRBP팀", short:"HRBP"},
+  HRBP:    {label:"인사기획·운영·HRBP팀", short:"인사기획·운영·HRBP"},
   RECRUIT: {label:"채용팀",              short:"채용"},
   TALENT:  {label:"인재개발팀",           short:"인재개발", byAcct:true}
 };
